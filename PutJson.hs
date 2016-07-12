@@ -17,7 +17,15 @@ renderJson JsonNull
 
 renderJson (JsonObject value)
   = "{" ++ pairs value ++ "}"
-  where pairs []     = "" 
-        pairs object = foldl renderPair "" object
-        renderPair   = separate
-        separate result (key, value) = result ++ ", then " ++ renderJson value
+  where pairs []
+          = ""
+        pairs subject
+          = foldl appendPair "" subject
+        appendPair
+          = appendPairSeparetedBy ", then"
+        appendPairSeparetedBy separator result pair
+          = result ++ pairPreceededBy separator pair
+        pairPreceededBy pre pair
+          = pre ++ valueOf pair
+        valueOf (key, value)
+          = renderJson value
