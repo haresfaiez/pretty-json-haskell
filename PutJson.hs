@@ -3,7 +3,10 @@ module PutJson where
 import Data.List (intercalate)
 import JsonLibrary
 
-renderJson :: JsonValue -> String
+type renderJsonType = JsonValue -> String
+
+renderJson :: renderJsonType
+
 renderJson (JsonString value)
   = show value
 renderJson (JsonNumber value)
