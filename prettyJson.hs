@@ -8,54 +8,71 @@ data Doc
 <>
   = undefined
 
-asDoc :: Char -> Doc
-asDoc
+regular :: Char -> Doc
+regular
   = undefined
 
-concatenateDoc :: [Doc] -> Doc
-concatenateDoc documents
+concat :: [Doc] -> Doc
+concat chunks
   = undefined
 
-oneCharacter :: Char -> Doc
-oneCharacter input
-  = case lookup input escapes of
-  Just replacement     -> text      replacement
+character :: Char -> Doc
+character input
+  = case lookup input escapeMap of
+  Just espcaped        -> text    espcaped
   Nothing
-    | mustEscape input -> hexEscape input
-    | otherwise        -> asDoc     input
-    where mustEscape input = input < ' ' || input == '\x7f' || input > '\xff'
+    | mustEscape input -> escape  input
+    | otherwise        -> regular input
+    where mustEscape input
+            =  input <  ' '
+            || input == '\x7f'
+            || input >  '\xff'
 
-escapes :: [(Char, String)]
-escapes
-  = zipWith ch "\b\n\f\r\t\\\"/" "bnfrt\\\"/"
-  where ch a b = (a, ['\\', b])
+escapeMap :: [(Char, String)]
+escapeMap
+  = zipWith escapePair "\b\n\f\r\t\\\"/" "bnfrt\\\"/"
+  where escapePair subject identity
+          = (subject, ['\\', identity])
 
-smallHex :: Int -> Doc
-smallHex value
+hexadecimalCharacter :: Int -> Doc
+hexadecimalCharacter input
   =  text "\\u"
-  <> text (replicate (4 - length hex) '0')
-  <> text hex
-  where hex = showHex value ""
+  <> text (hexadecimal input)
+
+hexadecimal :: Int -> String
+hexadecimale value
+    = hexadecimalOffset ++ (hexadecimalInset value)
+hexadecimalOffset
+    = replicate hexadecimalOffsetLength '0'
+hexadecimalOffsetLength
+    = 4 - length hexadecimalInset
+hexadecimalInset value
+    = showHex value ""
 
 astral :: Int -> Doc
-astral n
-  = smallHex (a + 0xd800) <> smallHex (b + 0xdc00)
-  where a = (n `shiftR` 10) .&. 0x3ff
-        b = n .&. 0x3ff
+astral input
+  =  hexadecimalCharacter (a + 0xd800)
+  <> hexadecimalCharacter (b + 0xdc00)
+  where a = (input `shiftR` 10) .&. 0x3ff
+        b =  input              .&. 0x3ff
 
-hexEscape :: Char -> Doc
-hexEscape c
-  | d < 0x10000 = smallHex d
-  | otherwise   = astral (d - 0x10000)
-  where d = ord c
+escape :: Char -> Doc
+escape input
+  | inputOrder < 0x10000 = hexadecimalCharacter d
+  | otherwise            = astral (inputOrder - 0x10000)
+  where inputOrder = ord input
 
 enclose :: Char -> Char -> Doc -> Doc           
 enclose opening closing fit
-  = asDoc opening <> fit <> asDoc closing
+  =  character opening
+  <> fit
+  <> character closing
 
 string :: String -> Doc
 string
-  = enclose '"' '"' . concatenateDoc . map oneCharacter
+  = enclose '"' '"'
+  . concat
+  . map character
 
 text :: String -> Doc
 text str
@@ -79,5 +96,5 @@ renderJsonValue JsonNull
 renderJsonValue (JsonNumber num)
   = double num
 
-renderJsonValue (JsonString str)
-  = string str
+renderJsonValue (JsonString value)
+  = string value
