@@ -1,4 +1,13 @@
+module PrettyJSON
+       (
+         renderJValue
+       ) where
+
+import Numeric
+import Data.Char
+import Data.Bits
 import JsonLibrary
+import Prettify
 
 data Doc
   = ToBeDefined
@@ -15,6 +24,18 @@ regular
 concat :: [Doc] -> Doc
 concat chunks
   = undefined
+
+separate :: Doc -> [Doc] -> [Doc]
+separate _ []
+  = []
+separate _ [singleton]
+  = [singleton]
+separate separator (each:others)
+  = (each <> separator)
+  : separate separator others
+
+wrapConcat :: [Doc] -> Doc
+wrapConcat chunks = undefined
 
 character :: Char -> Doc
 character input
@@ -63,10 +84,10 @@ escape input
   where inputOrder = ord input
 
 enclose :: Char -> Char -> Doc -> Doc           
-enclose opening closing fit
-  =  character opening
+enclose open close fit
+  =  character open
   <> fit
-  <> character closing
+  <> character close
 
 string :: String -> Doc
 string
@@ -82,6 +103,13 @@ double :: Double -> Doc
 double num
   = undefined
 
+series :: Char -> Char -> (a -> Doc) -> [a] -> Doc
+series open close doc
+  = enclose open close
+  . wrapConcat
+  . separate separator 
+  . map       doc
+  where separator = (character ',')
 
 renderJsonValue :: JsonValue -> Doc
 renderJsonValue (JsonBool True)
@@ -96,5 +124,16 @@ renderJsonValue JsonNull
 renderJsonValue (JsonNumber num)
   = double num
 
-renderJsonValue (JsonString value)
-  = string value
+renderJsonValue (JsonString wrap)
+  = string wrap
+
+renderJsonValue (JArray wrap)
+  = series '[' ']' renderJsonValue wrap
+
+renderJsonValue (JObject wrapped)
+  = series '{' '}' field wrapped
+  where field (key, value)
+          =  string          key
+          <> text            ": "
+          <> renderJsonValue value
+ 
