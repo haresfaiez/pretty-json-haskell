@@ -9,37 +9,59 @@ import Data.Bits
 import JsonLibrary
 import Prettify
 
-data Doc
-  = ToBeDefined
-  deriving (Show)
+data Doc = Empty
+  | Char   Char
+  | Text   String
+  | Line
+  | Concat Doc Doc
+  | Union  Doc Doc
+   deriving (Show,Eq)
 
-<> :: Doc -> Doc -> Doc
-<>
-  = undefined
+empty :: Doc
+empty = Empty
+
+line :: Doc
+line = Line
 
 regular :: Char -> Doc
-regular
-  = undefined
+regular character = Char character
+  
+<> :: Doc -> Doc -> Doc
+<> Empty value = value
+<> value Empty = value
+<> left right  = left `Concat` right
 
 concat :: [Doc] -> Doc
-concat chunks
-  = undefined
-
-separate :: Doc -> [Doc] -> [Doc]
-separate _ []
-  = []
-separate _ [singleton]
-  = [singleton]
-separate separator (each:others)
-  = (each <> separator)
-  : separate separator others
+concat chunks = fold (<>)
 
 wrapConcat :: [Doc] -> Doc
-wrapConcat chunks = undefined
+wrapConcat = fold (</>)
+
+(</>) :: Doc -> Doc -> Doc
+first </> last = first <> softline <> last
+
+softline :: Doc
+softline = flatUnion line
+
+flatUnion :: Doc -> Doc
+flatUnion input = flat input `Union` input
+
+flat :: Doc -> Doc
+flat (first `Concat` last) = flat first `Concat` flat last
+flat Line                  = Char ' '
+flat (singleton `Union` _) = flat singleton
+flat aDoc                  = aDoc
+
+fold :: (Doc -> Doc -> Doc) -> [Doc] -> Doc
+fold join = foldr join empty
+
+separate :: Doc -> [Doc] -> [Doc]
+separate _ []                    = []
+separate _ [singleton]           = [singleton]
+separate separator (each:others) = (each <> separator) : separate separator others
 
 character :: Char -> Doc
-character input
-  = case lookup input escapeMap of
+character input = case lookup input escapeMap of
   Just espcaped        -> text    espcaped
   Nothing
     | mustEscape input -> escape  input
@@ -50,15 +72,12 @@ character input
             || input >  '\xff'
 
 escapeMap :: [(Char, String)]
-escapeMap
-  = zipWith escapePair "\b\n\f\r\t\\\"/" "bnfrt\\\"/"
+escapeMap = zipWith escapePair "\b\n\f\r\t\\\"/" "bnfrt\\\"/"
   where escapePair subject identity
           = (subject, ['\\', identity])
 
 hexadecimalCharacter :: Int -> Doc
-hexadecimalCharacter input
-  =  text "\\u"
-  <> text (hexadecimal input)
+hexadecimalCharacter input =  text "\\u" <> text (hexadecimal input)
 
 hexadecimal :: Int -> String
 hexadecimale value
@@ -71,9 +90,7 @@ hexadecimalInset value
     = showHex value ""
 
 astral :: Int -> Doc
-astral input
-  =  hexadecimalCharacter (a + 0xd800)
-  <> hexadecimalCharacter (b + 0xdc00)
+astral input =  hexadecimalCharacter (a + 0xd800) <> hexadecimalCharacter (b + 0xdc00)
   where a = (input `shiftR` 10) .&. 0x3ff
         b =  input              .&. 0x3ff
 
@@ -84,54 +101,41 @@ escape input
   where inputOrder = ord input
 
 enclose :: Char -> Char -> Doc -> Doc           
-enclose open close fit
-  =  character open
-  <> fit
-  <> character close
+enclose open close fit =  character open <> fit <> character close
 
 string :: String -> Doc
-string
-  = enclose '"' '"'
+string = enclose '"' '"'
   . concat
   . map character
 
 text :: String -> Doc
-text str
-  = undefined
+text "" = Empty
+text input = Text input
 
 double :: Double -> Doc
-double num
-  = undefined
+double value = Text (show value)
 
 series :: Char -> Char -> (a -> Doc) -> [a] -> Doc
-series open close doc
-  = enclose open close
+series open close doc = enclose open close
   . wrapConcat
   . separate separator 
-  . map       doc
+  . map      doc
   where separator = (character ',')
 
 renderJsonValue :: JsonValue -> Doc
-renderJsonValue (JsonBool True)
-  = text "true"
+renderJsonValue (JsonBool True) = text "true"
 
-renderJsonValue (JsonBool False)
-  = text "false"
+renderJsonValue (JsonBool False) = text "false"
 
-renderJsonValue JsonNull
-  = text "null"
+renderJsonValue JsonNull = text "null"
 
-renderJsonValue (JsonNumber num)
-  = double num
+renderJsonValue (JsonNumber num) = double num
 
-renderJsonValue (JsonString wrap)
-  = string wrap
+renderJsonValue (JsonString wrap) = string wrap
 
-renderJsonValue (JArray wrap)
-  = series '[' ']' renderJsonValue wrap
+renderJsonValue (JArray wrap) = series '[' ']' renderJsonValue wrap
 
-renderJsonValue (JObject wrapped)
-  = series '{' '}' field wrapped
+renderJsonValue (JObject wrapped) = series '{' '}' field wrapped
   where field (key, value)
           =  string          key
           <> text            ": "
