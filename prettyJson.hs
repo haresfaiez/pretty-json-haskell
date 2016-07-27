@@ -140,4 +140,15 @@ renderJsonValue (JObject wrapped) = series '{' '}' field wrapped
           =  string          key
           <> text            ": "
           <> renderJsonValue value
- 
+         
+compact :: Doc -> String
+compact aDoc = transform [aDoc]
+          where transform [] = ""
+                transform (head : tail)
+                  = case head of
+                  Empty                 -> transform tail
+                  Char value            -> value : transform tail
+                  Text value            -> value ++ transform tail
+                  Line                  -> '\n' : transform tail
+                  first `Concat` second -> transform (first : second : tail)
+                  _      `Union` value  -> transform (value : tail)
